@@ -43,7 +43,7 @@ build:
   after_script:
     - docker logout $CI_REGISTRY
   only:
-    - main_service
+    - master
 
 deploy to test:
   stage: deploy
@@ -63,4 +63,4 @@ deploy to test:
   after_script:
     - docker logout $CI_REGISTRY
   only:
-    - main_service
+    - master
