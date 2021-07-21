@@ -1,0 +1,66 @@
+image: golang:latest
+
+variables:
+  PROJECT_NAME: "sharito"
+
+stages:
+  - test
+  - build
+  - deploy
+
+lint:
+  image: golangci/golangci-lint:v1.31.0
+  stage: test
+  script:
+    - make dep
+    - make lint
+  only:
+    - merge_requests
+
+unit tests:
+  stage: test
+  script:
+    - make dep
+    - make test
+  only:
+    - merge_requests
+
+build:
+  stage: build
+  image: docker
+  services:
+    - docker:dind
+  before_script:
+    - export VERSION=$(cat version)-$CI_COMMIT_SHORT_SHA
+    - echo $CI_REGISTRY
+    - echo $CI_REGISTRY_USER
+    - echo $CI_REGISTRY_PASSWORD
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$VERSION .
+    - docker tag $CI_REGISTRY_IMAGE:$VERSION $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE
+  after_script:
+    - docker logout $CI_REGISTRY
+  only:
+    - main_service
+
+deploy to test:
+  stage: deploy
+  tags:
+    - deployment
+  environment:
+    name: dev
+  variables:
+    ENV_FILE: configs/test.env
+    CONTAINER_NAME: $PROJECT_NAME-test
+    PORT: 6057
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:latest
+    - make docker-rerun
+  after_script:
+    - docker logout $CI_REGISTRY
+  only:
+    - main_service
